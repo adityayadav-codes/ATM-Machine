@@ -31,25 +31,30 @@ abstract class Bank {
             System.out.println("Insufficient balance!");
         }
         System.out.println("Available Balance: " + balance);
+
     }
 
     public void checkBalance() {
         System.out.println(getClass().getSimpleName() + " Balance: " + balance);
     }
+
+    public abstract int getPin();
 }
 
 class SBI extends Bank {
-
     double getInterestRate() { return 7; }
+  public   int getPin() { return 7485; }
 }
 
 class Union extends Bank {
     double getInterestRate() { return 10; }
+   public int  getPin() { return 8475; }
 
 }
 
 class PNB extends Bank {
     double getInterestRate() { return 8; }
+   public  int getPin() { return 1234; }
 }
 
 public class MainBank {
@@ -59,15 +64,15 @@ public class MainBank {
         System.out.println("Choose Bank: 1. SBI  2. PNB  3. Union Bank");
         int bankChoice = sc.nextInt();
 
-        Bank obj;
+        Bank obj = null;
         if (bankChoice == 1) obj = new SBI();
         else if (bankChoice == 2) obj = new PNB();
-        else obj = new Union();
-
+        else if (bankChoice == 3){obj = new Union();}
+        else System.out.println("Wrong choice!");
         int attempts = 0, maxAttempts = 3;
-        final int CorrectPin = 7485;
-        boolean accessGranted = false;
 
+        boolean accessGranted = false;
+        int CorrectPin = obj.getPin();
         while (attempts < maxAttempts) {
             System.out.print("🏧Enter Your 4-digit ATM PIN:.🔑 ");
             int enteredPin = sc.nextInt();
@@ -103,7 +108,7 @@ public class MainBank {
 
         if (!accessGranted) {
             System.out.println("🚫 🚫YOUR CARD HAS BEEN BLOCKED DUE TO TOO MANY WRONG ATTEMPTS❕");
-            System.out.println("Please Contact Your Bank Account❕");
+            System.out.println("Please try later❕");
         }
     }
 }
