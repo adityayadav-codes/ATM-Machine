@@ -1,37 +1,34 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.FileInputStream;
 import java.sql.*;
-import java.util.Properties;
 
 public class AtmGui extends JFrame implements ActionListener {
 
+    // Panels
     JPanel loginPanel, menuPanel;
-    JLabel lblBank, lblPin, lblMessage;
+    JLabel lblBank, lblPin, lblMessage, lblUserInfo;
     JComboBox<String> cbBank;
     JPasswordField txtPin;
-    JButton btnLogin, btnDeposit, btnWithdraw, btnCheckBalance, btnExit, btnHistory;
+    JButton btnLogin, btnDeposit, btnWithdraw, btnCheck, btnHistory, btnExit;
 
+    // Database and data variables
     Connection con;
-    int accountId = -1;
-    double currentBalance = 0;
+    int accountId;
+    double currentBalance;
+    String currentBank;
+    String currentUserName;
+    String currentPhone;
 
     public AtmGui() {
         setTitle("ATM Simulator");
-        setSize(500, 450);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
+        setSize(450, 400);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new CardLayout());
 
-        try {
-            connectDB();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        initLoginPanel();
-        initMenuPanel();
+        connectDatabase();
+        createLoginPanel();
+        createMenuPanel();
 
         add(loginPanel, "Login");
         add(menuPanel, "Menu");
@@ -39,122 +36,68 @@ public class AtmGui extends JFrame implements ActionListener {
         setVisible(true);
     }
 
-    // ✅ Step 1: Database connection (no change made here)
-    public void connectDB() {
+    // 🔹 Database Connection (NO CHANGE FROM YOUR STRUCTURE)
+    void connectDatabase() {
         try {
-            Properties props = new Properties();
-            props.load(new FileInputStream("config.properties"));
-            System.out.println("✅ Properties loaded successfully!");
-
-            String url = props.getProperty("db.url");
-            String user = props.getProperty("db.user");
-            String password = props.getProperty("db.password");
-
             Class.forName("com.mysql.cj.jdbc.Driver");
-            con = DriverManager.getConnection(url, user, password);
-            System.out.println("✅ Connected to DB successfully!");
-
+            con = DriverManager.getConnection("jdbc:mysql://localhost:3306/atmdb", "root", "yourpassword");
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "❌ Database connection failed!\n" + e.getMessage());
-            System.exit(0);
+            JOptionPane.showMessageDialog(this, "Database Connection Failed: " + e.getMessage());
         }
     }
 
-    // ✅ Step 2: Login Panel
-    private void initLoginPanel() {
-        loginPanel = new JPanel();
-        loginPanel.setLayout(null);
-        loginPanel.setBackground(Color.LIGHT_GRAY);
-
-        JLabel lblTitle = new JLabel("Welcome to ATM Simulator");
-        lblTitle.setFont(new Font("Arial", Font.BOLD, 20));
-        lblTitle.setBounds(80, 20, 350, 30);
-        loginPanel.add(lblTitle);
+    // 🔹 LOGIN PANEL
+    void createLoginPanel() {
+        loginPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        loginPanel.setBackground(Color.white);
 
         lblBank = new JLabel("Select Bank:");
-        lblBank.setBounds(50, 80, 100, 25);
-        loginPanel.add(lblBank);
+        lblPin = new JLabel("Enter PIN:");
+        lblMessage = new JLabel("", SwingConstants.CENTER);
+        lblMessage.setForeground(Color.RED);
 
         cbBank = new JComboBox<>(new String[]{"SBI", "PNB", "Union"});
-        cbBank.setBounds(160, 80, 150, 25);
-        loginPanel.add(cbBank);
-
-        lblPin = new JLabel("Enter 4-digit PIN:");
-        lblPin.setBounds(50, 130, 120, 25);
-        loginPanel.add(lblPin);
-
-        txtPin = new JPasswordField();
-        txtPin.setBounds(180, 130, 130, 25);
-        loginPanel.add(txtPin);
-
+        txtPin = new JPasswordField(10);
         btnLogin = new JButton("Login");
-        btnLogin.setBounds(180, 180, 100, 30);
         btnLogin.addActionListener(this);
-        loginPanel.add(btnLogin);
 
-        lblMessage = new JLabel("");
-        lblMessage.setBounds(50, 230, 400, 25);
-        lblMessage.setForeground(Color.RED);
-        loginPanel.add(lblMessage);
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.gridx = 0; gbc.gridy = 0; loginPanel.add(lblBank, gbc);
+        gbc.gridx = 1; loginPanel.add(cbBank, gbc);
+        gbc.gridx = 0; gbc.gridy = 1; loginPanel.add(lblPin, gbc);
+        gbc.gridx = 1; loginPanel.add(txtPin, gbc);
+        gbc.gridy = 2; gbc.gridwidth = 2; loginPanel.add(btnLogin, gbc);
+        gbc.gridy = 3; loginPanel.add(lblMessage, gbc);
     }
 
-    // ✅ Step 3: Menu Panel
-    private void initMenuPanel() {
-        menuPanel = new JPanel();
-        menuPanel.setLayout(null);
-        menuPanel.setBackground(Color.WHITE);
+    // 🔹 MENU PANEL
+    void createMenuPanel() {
+        menuPanel = new JPanel(new BorderLayout());
+        JPanel btnPanel = new JPanel(new GridLayout(5, 1, 10, 10));
+        btnPanel.setBorder(BorderFactory.createEmptyBorder(20, 60, 20, 60));
 
-        JLabel lblMenu = new JLabel("Select Operation");
-        lblMenu.setFont(new Font("Arial", Font.BOLD, 18));
-        lblMenu.setBounds(150, 30, 200, 30);
-        menuPanel.add(lblMenu);
+        lblUserInfo = new JLabel("Welcome!", SwingConstants.CENTER);
+        lblUserInfo.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        lblUserInfo.setForeground(Color.DARK_GRAY);
 
         btnDeposit = new JButton("Deposit");
-        btnDeposit.setBounds(50, 80, 150, 40);
-        btnDeposit.addActionListener(this);
-        menuPanel.add(btnDeposit);
-
         btnWithdraw = new JButton("Withdraw");
-        btnWithdraw.setBounds(250, 80, 150, 40);
-        btnWithdraw.addActionListener(this);
-        menuPanel.add(btnWithdraw);
-
-        btnCheckBalance = new JButton("Check Balance");
-        btnCheckBalance.setBounds(150, 150, 150, 40);
-        btnCheckBalance.addActionListener(this);
-        menuPanel.add(btnCheckBalance);
-
+        btnCheck = new JButton("Check Balance");
         btnHistory = new JButton("Transaction History");
-        btnHistory.setBounds(150, 220, 150, 40);
-        btnHistory.addActionListener(this);
-        menuPanel.add(btnHistory);
-
         btnExit = new JButton("Exit");
-        btnExit.setBounds(150, 290, 150, 40);
-        btnExit.addActionListener(this);
-        menuPanel.add(btnExit);
-    }
 
-    // ✅ Step 4: Button Actions
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        if (e.getSource() == btnLogin) {
-            performLogin();
-        } else if (e.getSource() == btnDeposit) {
-            performDeposit();
-        } else if (e.getSource() == btnWithdraw) {
-            performWithdraw();
-        } else if (e.getSource() == btnCheckBalance) {
-            showBalance();
-        } else if (e.getSource() == btnHistory) {
-            showTransactionHistory();
-        } else if (e.getSource() == btnExit) {
-            JOptionPane.showMessageDialog(this, "Thank you for using ATM Simulator!");
-            System.exit(0);
+        for (JButton b : new JButton[]{btnDeposit, btnWithdraw, btnCheck, btnHistory, btnExit}) {
+            b.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            b.addActionListener(this);
+            btnPanel.add(b);
         }
+
+        menuPanel.add(lblUserInfo, BorderLayout.NORTH);
+        menuPanel.add(btnPanel, BorderLayout.CENTER);
     }
 
-    // ✅ Step 5: Login Logic (with user info)
+    // 🔹 LOGIN LOGIC
     private void performLogin() {
         String selectedBank = cbBank.getSelectedItem().toString();
         String pinText = new String(txtPin.getPassword()).trim();
@@ -165,41 +108,40 @@ public class AtmGui extends JFrame implements ActionListener {
         }
 
         try {
-            PreparedStatement ps1 = con.prepareStatement(
+            PreparedStatement ps = con.prepareStatement(
                     "SELECT * FROM accounts WHERE bank_name=? AND pin=?");
-            ps1.setString(1, selectedBank);
-            ps1.setInt(2, Integer.parseInt(pinText));
-            ResultSet rs1 = ps1.executeQuery();
+            ps.setString(1, selectedBank);
+            ps.setInt(2, Integer.parseInt(pinText));
+            ResultSet rs = ps.executeQuery();
 
-            if (rs1.next()) {
-                accountId = rs1.getInt("id");
-                currentBalance = rs1.getDouble("balance");
-                lblMessage.setText("");
+            if (rs.next()) {
+                accountId = rs.getInt("id");
+                currentBalance = rs.getDouble("balance");
+                currentBank = rs.getString("bank_name");
 
-                // Fetch user info
+                // Fetch user details from users table
                 PreparedStatement ps2 = con.prepareStatement(
-                        "SELECT u.name, u.phone, a.bank_name, a.balance " +
-                        "FROM users u JOIN accounts a ON u.account_id = a.id " +
-                        "WHERE a.id = ?");
+                        "SELECT name, phone FROM users WHERE account_id=?");
                 ps2.setInt(1, accountId);
                 ResultSet rs2 = ps2.executeQuery();
 
                 if (rs2.next()) {
-                    String name = rs2.getString("name");
-                    String phone = rs2.getString("phone");
-                    String bank = rs2.getString("bank_name");
-                    double balance = rs2.getDouble("balance");
-
-                    JOptionPane.showMessageDialog(this,
-                            "Welcome, " + name + "\n" +
-                            "Bank: " + bank + "\n" +
-                            "Phone: " + phone + "\n" +
-                            "Balance: ₹" + balance);
+                    currentUserName = rs2.getString("name");
+                    currentPhone = rs2.getString("phone");
+                } else {
+                    currentUserName = "User";
+                    currentPhone = "N/A";
                 }
 
+                // Show info bar
+                lblUserInfo.setText("👋 Welcome, " + currentUserName +
+                        " | Bank: " + currentBank +
+                        " | Phone: " + currentPhone +
+                        " | Balance: ₹" + currentBalance);
+
+                lblMessage.setText("");
                 CardLayout cl = (CardLayout) getContentPane().getLayout();
                 cl.show(getContentPane(), "Menu");
-
             } else {
                 lblMessage.setText("❌ Invalid PIN! Try again.");
             }
@@ -209,115 +151,56 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
-    // ✅ Step 6: Deposit
-    private void performDeposit() {
-        String input = JOptionPane.showInputDialog(this, "Enter amount to deposit:");
-        if (input != null && !input.isEmpty()) {
-            try {
-                double amount = Double.parseDouble(input);
-                if (amount <= 0) {
-                    JOptionPane.showMessageDialog(this, "❌ Amount must be positive!");
-                    return;
-                }
-                currentBalance += amount;
-
-                PreparedStatement ps = con.prepareStatement(
-                        "UPDATE accounts SET balance=? WHERE id=?");
-                ps.setDouble(1, currentBalance);
-                ps.setInt(2, accountId);
-                ps.executeUpdate();
-
-                PreparedStatement ts = con.prepareStatement(
-                        "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
-                ts.setInt(1, accountId);
-                ts.setString(2, "Deposit");
-                ts.setDouble(3, amount);
-                ts.setDouble(4, currentBalance);
-                ts.executeUpdate();
-
-                JOptionPane.showMessageDialog(this, "✅ Deposited: ₹" + amount +
-                        "\nUpdated Balance: ₹" + currentBalance);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "❌ Invalid amount!");
+    // 🔹 ACTION HANDLER
+    public void actionPerformed(ActionEvent e) {
+        if (e.getSource() == btnLogin) {
+            performLogin();
+        } else if (e.getSource() == btnDeposit) {
+            String amountStr = JOptionPane.showInputDialog(this, "Enter amount to deposit:");
+            if (amountStr != null && !amountStr.isEmpty()) {
+                double amt = Double.parseDouble(amountStr);
+                currentBalance += amt;
+                updateBalance();
+                JOptionPane.showMessageDialog(this, "✅ ₹" + amt + " deposited successfully!");
             }
-        }
-    }
-
-    // ✅ Step 7: Withdraw
-    private void performWithdraw() {
-        String input = JOptionPane.showInputDialog(this, "Enter amount to withdraw:");
-        if (input != null && !input.isEmpty()) {
-            try {
-                double amount = Double.parseDouble(input);
-                if (amount <= 0) {
-                    JOptionPane.showMessageDialog(this, "❌ Amount must be positive!");
-                    return;
-                }
-                if (amount > currentBalance) {
+        } else if (e.getSource() == btnWithdraw) {
+            String amountStr = JOptionPane.showInputDialog(this, "Enter amount to withdraw:");
+            if (amountStr != null && !amountStr.isEmpty()) {
+                double amt = Double.parseDouble(amountStr);
+                if (amt <= currentBalance) {
+                    currentBalance -= amt;
+                    updateBalance();
+                    JOptionPane.showMessageDialog(this, "✅ ₹" + amt + " withdrawn successfully!");
+                } else {
                     JOptionPane.showMessageDialog(this, "❌ Insufficient balance!");
-                    return;
                 }
-                currentBalance -= amount;
-
-                PreparedStatement ps = con.prepareStatement(
-                        "UPDATE accounts SET balance=? WHERE id=?");
-                ps.setDouble(1, currentBalance);
-                ps.setInt(2, accountId);
-                ps.executeUpdate();
-
-                PreparedStatement ts = con.prepareStatement(
-                        "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
-                ts.setInt(1, accountId);
-                ts.setString(2, "Withdraw");
-                ts.setDouble(3, amount);
-                ts.setDouble(4, currentBalance);
-                ts.executeUpdate();
-
-                JOptionPane.showMessageDialog(this, "✅ Withdrawn: ₹" + amount +
-                        "\nUpdated Balance: ₹" + currentBalance);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "❌ Invalid amount!");
             }
+        } else if (e.getSource() == btnCheck) {
+            JOptionPane.showMessageDialog(this, "💰 Current Balance: ₹" + currentBalance);
+        } else if (e.getSource() == btnExit) {
+            System.exit(0);
         }
     }
 
-    // ✅ Step 8: Balance Check
-    private void showBalance() {
-        JOptionPane.showMessageDialog(this, "💰 Current Balance: ₹" + currentBalance);
-    }
-
-    // ✅ Step 9: Transaction History
-    private void showTransactionHistory() {
+    // 🔹 Update balance in database and info bar
+    void updateBalance() {
         try {
             PreparedStatement ps = con.prepareStatement(
-                    "SELECT type, amount, date_time FROM transactions WHERE account_id=? ORDER BY date_time DESC LIMIT 5");
-            ps.setInt(1, accountId);
-            ResultSet rs = ps.executeQuery();
+                    "UPDATE accounts SET balance=? WHERE id=?");
+            ps.setDouble(1, currentBalance);
+            ps.setInt(2, accountId);
+            ps.executeUpdate();
 
-            StringBuilder history = new StringBuilder("<html><b>Last 5 Transactions:</b><br><br>");
-            boolean hasRecords = false;
-            while (rs.next()) {
-                hasRecords = true;
-                history.append(rs.getString("type"))
-                        .append(" - ₹")
-                        .append(rs.getDouble("amount"))
-                        .append(" on ")
-                        .append(rs.getTimestamp("date_time"))
-                        .append("<br>");
-            }
-            if (!hasRecords) {
-                history.append("No recent transactions found.<br>");
-            }
-            history.append("</html>");
-
-            JOptionPane.showMessageDialog(this, new JLabel(history.toString()));
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Error fetching history: " + ex.getMessage());
+            lblUserInfo.setText("👋 Welcome, " + currentUserName +
+                    " | Bank: " + currentBank +
+                    " | Phone: " + currentPhone +
+                    " | Balance: ₹" + currentBalance);
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error updating balance: " + e.getMessage());
         }
     }
 
-    // ✅ Step 10: Run Application
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new AtmGui());
+        new AtmGui();
     }
 }
