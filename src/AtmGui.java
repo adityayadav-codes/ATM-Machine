@@ -69,33 +69,55 @@ public class AtmGui extends JFrame implements ActionListener {
         gbc.gridx = 1; loginPanel.add(txtPin, gbc);
         gbc.gridy = 2; gbc.gridwidth = 2; loginPanel.add(btnLogin, gbc);
         gbc.gridy = 3; loginPanel.add(lblMessage, gbc);
+        //
+        lblUserInfo.setText("👋 Welcome, " + currentUserName +
+        " | Bank: " + currentBank +
+        " | Phone: " + currentPhone +
+        " | Balance: ₹" + currentBalance);
+        //
     }
 
     // 🔹 MENU PANEL
     void createMenuPanel() {
-        menuPanel = new JPanel(new BorderLayout());
-        JPanel btnPanel = new JPanel(new GridLayout(5, 1, 10, 10));
-        btnPanel.setBorder(BorderFactory.createEmptyBorder(20, 60, 20, 60));
+    menuPanel = new JPanel(new BorderLayout());
+    menuPanel.setBackground(Color.white);
 
-        lblUserInfo = new JLabel("Welcome!", SwingConstants.CENTER);
-        lblUserInfo.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        lblUserInfo.setForeground(Color.DARK_GRAY);
+    // 🔹 Header panel (user info)
+    lblUserInfo = new JLabel("Welcome!", SwingConstants.CENTER);
+    lblUserInfo.setFont(new Font("Segoe UI", Font.BOLD, 16));
+    lblUserInfo.setForeground(new Color(0, 51, 102));
+    lblUserInfo.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
 
-        btnDeposit = new JButton("Deposit");
-        btnWithdraw = new JButton("Withdraw");
-        btnCheck = new JButton("Check Balance");
-        btnHistory = new JButton("Transaction History");
-        btnExit = new JButton("Exit");
+    // 🔹 Center panel for buttons
+    JPanel btnPanel = new JPanel(new GridLayout(5, 1, 10, 10));
+    btnPanel.setBorder(BorderFactory.createEmptyBorder(20, 100, 20, 100));
+    btnPanel.setBackground(Color.white);
 
-        for (JButton b : new JButton[]{btnDeposit, btnWithdraw, btnCheck, btnHistory, btnExit}) {
-            b.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-            b.addActionListener(this);
-            btnPanel.add(b);
-        }
+    btnDeposit = new JButton("Deposit");
+    btnWithdraw = new JButton("Withdraw");
+    btnCheck = new JButton("Check Balance");
+    btnHistory = new JButton("Transaction History");
+    btnExit = new JButton("Exit");
 
-        menuPanel.add(lblUserInfo, BorderLayout.NORTH);
-        menuPanel.add(btnPanel, BorderLayout.CENTER);
+    for (JButton b : new JButton[]{btnDeposit, btnWithdraw, btnCheck, btnHistory, btnExit}) {
+        b.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        b.addActionListener(this);
+        btnPanel.add(b);
     }
+
+    JLabel lblTitle = new JLabel("Select Operation", SwingConstants.CENTER);
+    lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 20));
+    lblTitle.setBorder(BorderFactory.createEmptyBorder(10, 10, 20, 10));
+
+    // 🔹 Combine everything
+    JPanel centerPanel = new JPanel(new BorderLayout());
+    centerPanel.setBackground(Color.white);
+    centerPanel.add(lblTitle, BorderLayout.NORTH);
+    centerPanel.add(btnPanel, BorderLayout.CENTER);
+
+    menuPanel.add(lblUserInfo, BorderLayout.NORTH);   // header at top
+    menuPanel.add(centerPanel, BorderLayout.CENTER);  // buttons in center
+}
 
     // 🔹 LOGIN LOGIC
     private void performLogin() {
