@@ -1,7 +1,9 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.FileInputStream;
 import java.sql.*;
+import java.util.Properties;
 
 public class AtmGui extends JFrame implements ActionListener {
 
@@ -25,7 +27,12 @@ public class AtmGui extends JFrame implements ActionListener {
         setLayout(new CardLayout());
 
         // Connect to DB
-        connectDB();
+        try {
+            connectDB();
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
 
         // Initialize panels
         initLoginPanel();
@@ -37,19 +44,26 @@ public class AtmGui extends JFrame implements ActionListener {
 
         setVisible(true);
     }
+    
+public void connectDB() {
+    try {
+        Properties props = new Properties();
+        props.load(new FileInputStream("config.properties"));
+        System.out.println("✅ Properties loaded successfully!");
 
-    private void connectDB() {
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");  // Driver load ho raha hai
-Connection con = DriverManager.getConnection(
-    "jdbc:mysql://localhost:3306/atm_db", "root", "Ady@1234");
-          
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Database Connection Failed!\n" + e.getMessage());
-            System.exit(0);
-        }
+        String url = props.getProperty("db.url");
+        String user = props.getProperty("db.user");
+        String password = props.getProperty("db.password");
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        con = DriverManager.getConnection(url, user, password);
+        System.out.println("✅ Connected to DB successfully!");
+
+    } catch (Exception e) {
+        JOptionPane.showMessageDialog(this, "❌ Database connection failed!\n" + e.getMessage());
+        System.exit(0);
     }
-
+}
     private void initLoginPanel() {
         loginPanel = new JPanel();
         loginPanel.setLayout(null);
