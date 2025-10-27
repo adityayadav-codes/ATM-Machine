@@ -39,6 +39,7 @@ public class AtmGui extends JFrame implements ActionListener {
         setVisible(true);
     }
 
+    // ✅ Step 1: Database connection (no change made here)
     public void connectDB() {
         try {
             Properties props = new Properties();
@@ -59,6 +60,7 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
+    // ✅ Step 2: Login Panel
     private void initLoginPanel() {
         loginPanel = new JPanel();
         loginPanel.setLayout(null);
@@ -96,6 +98,7 @@ public class AtmGui extends JFrame implements ActionListener {
         loginPanel.add(lblMessage);
     }
 
+    // ✅ Step 3: Menu Panel
     private void initMenuPanel() {
         menuPanel = new JPanel();
         menuPanel.setLayout(null);
@@ -132,6 +135,7 @@ public class AtmGui extends JFrame implements ActionListener {
         menuPanel.add(btnExit);
     }
 
+    // ✅ Step 4: Button Actions
     @Override
     public void actionPerformed(ActionEvent e) {
         if (e.getSource() == btnLogin) {
@@ -150,62 +154,62 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
-  private void performLogin() {
-    String selectedBank = cbBank.getSelectedItem().toString();
-    String pinText = new String(txtPin.getPassword()).trim();
+    // ✅ Step 5: Login Logic (with user info)
+    private void performLogin() {
+        String selectedBank = cbBank.getSelectedItem().toString();
+        String pinText = new String(txtPin.getPassword()).trim();
 
-    if (pinText.length() != 4) {
-        lblMessage.setText("❌ PIN must be 4 digits!");
-        return;
-    }
-
-    try {
-        // STEP 1: Verify account
-        PreparedStatement ps1 = con.prepareStatement(
-            "SELECT * FROM accounts WHERE bank_name=? AND pin=?");
-        ps1.setString(1, selectedBank);
-        ps1.setInt(2, Integer.parseInt(pinText));
-        ResultSet rs1 = ps1.executeQuery();
-
-        if (rs1.next()) {
-            accountId = rs1.getInt("id");
-            currentBalance = rs1.getDouble("balance");
-            lblMessage.setText("");
-
-            // STEP 2: Fetch user info
-            PreparedStatement ps2 = con.prepareStatement(
-                "SELECT u.name, u.phone, a.bank_name, a.balance " +
-                "FROM users u JOIN accounts a ON u.account_id = a.id " +
-                "WHERE a.id = ?");
-            ps2.setInt(1, accountId);
-
-            ResultSet rs2 = ps2.executeQuery();
-            if (rs2.next()) {
-                String name = rs2.getString("name");
-                String phone = rs2.getString("phone");
-                String bank = rs2.getString("bank_name");
-                double balance = rs2.getDouble("balance");
-
-                JOptionPane.showMessageDialog(this,
-                    "Welcome, " + name + "\n" +
-                    "Bank: " + bank + "\n" +
-                    "Phone: " + phone + "\n" +
-                    "Balance: ₹" + balance);
-            }
-
-            // STEP 3: Go to menu
-            CardLayout cl = (CardLayout) getContentPane().getLayout();
-            cl.show(getContentPane(), "Menu");
-
-        } else {
-            lblMessage.setText("❌ Invalid PIN! Try again.");
+        if (pinText.length() != 4) {
+            lblMessage.setText("❌ PIN must be 4 digits!");
+            return;
         }
 
-    } catch (SQLException ex) {
-        JOptionPane.showMessageDialog(this, "Login Error: " + ex.getMessage());
-    }
-}
+        try {
+            PreparedStatement ps1 = con.prepareStatement(
+                    "SELECT * FROM accounts WHERE bank_name=? AND pin=?");
+            ps1.setString(1, selectedBank);
+            ps1.setInt(2, Integer.parseInt(pinText));
+            ResultSet rs1 = ps1.executeQuery();
 
+            if (rs1.next()) {
+                accountId = rs1.getInt("id");
+                currentBalance = rs1.getDouble("balance");
+                lblMessage.setText("");
+
+                // Fetch user info
+                PreparedStatement ps2 = con.prepareStatement(
+                        "SELECT u.name, u.phone, a.bank_name, a.balance " +
+                        "FROM users u JOIN accounts a ON u.account_id = a.id " +
+                        "WHERE a.id = ?");
+                ps2.setInt(1, accountId);
+                ResultSet rs2 = ps2.executeQuery();
+
+                if (rs2.next()) {
+                    String name = rs2.getString("name");
+                    String phone = rs2.getString("phone");
+                    String bank = rs2.getString("bank_name");
+                    double balance = rs2.getDouble("balance");
+
+                    JOptionPane.showMessageDialog(this,
+                            "Welcome, " + name + "\n" +
+                            "Bank: " + bank + "\n" +
+                            "Phone: " + phone + "\n" +
+                            "Balance: ₹" + balance);
+                }
+
+                CardLayout cl = (CardLayout) getContentPane().getLayout();
+                cl.show(getContentPane(), "Menu");
+
+            } else {
+                lblMessage.setText("❌ Invalid PIN! Try again.");
+            }
+
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Login Error: " + ex.getMessage());
+        }
+    }
+
+    // ✅ Step 6: Deposit
     private void performDeposit() {
         String input = JOptionPane.showInputDialog(this, "Enter amount to deposit:");
         if (input != null && !input.isEmpty()) {
@@ -223,14 +227,12 @@ public class AtmGui extends JFrame implements ActionListener {
                 ps.setInt(2, accountId);
                 ps.executeUpdate();
 
-                // Save transaction
-                double newBalance = currentBalance;
                 PreparedStatement ts = con.prepareStatement(
-                    "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
+                        "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
                 ts.setInt(1, accountId);
                 ts.setString(2, "Deposit");
                 ts.setDouble(3, amount);
-                ts.setDouble(4, newBalance);
+                ts.setDouble(4, currentBalance);
                 ts.executeUpdate();
 
                 JOptionPane.showMessageDialog(this, "✅ Deposited: ₹" + amount +
@@ -241,6 +243,7 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
+    // ✅ Step 7: Withdraw
     private void performWithdraw() {
         String input = JOptionPane.showInputDialog(this, "Enter amount to withdraw:");
         if (input != null && !input.isEmpty()) {
@@ -262,12 +265,12 @@ public class AtmGui extends JFrame implements ActionListener {
                 ps.setInt(2, accountId);
                 ps.executeUpdate();
 
-                // Save transaction
                 PreparedStatement ts = con.prepareStatement(
-                        "INSERT INTO transactions (account_id, type, amount) VALUES (?, ?, ?)");
+                        "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
                 ts.setInt(1, accountId);
                 ts.setString(2, "Withdraw");
                 ts.setDouble(3, amount);
+                ts.setDouble(4, currentBalance);
                 ts.executeUpdate();
 
                 JOptionPane.showMessageDialog(this, "✅ Withdrawn: ₹" + amount +
@@ -278,14 +281,16 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
+    // ✅ Step 8: Balance Check
     private void showBalance() {
         JOptionPane.showMessageDialog(this, "💰 Current Balance: ₹" + currentBalance);
     }
 
+    // ✅ Step 9: Transaction History
     private void showTransactionHistory() {
         try {
             PreparedStatement ps = con.prepareStatement(
-                "SELECT type, amount, date_time FROM transactions WHERE account_id=? ORDER BY date_time DESC LIMIT 5");
+                    "SELECT type, amount, date_time FROM transactions WHERE account_id=? ORDER BY date_time DESC LIMIT 5");
             ps.setInt(1, accountId);
             ResultSet rs = ps.executeQuery();
 
@@ -294,11 +299,11 @@ public class AtmGui extends JFrame implements ActionListener {
             while (rs.next()) {
                 hasRecords = true;
                 history.append(rs.getString("type"))
-                       .append(" - ₹")
-                       .append(rs.getDouble("amount"))
-                       .append(" on ")
-                       .append(rs.getTimestamp("date_time"))
-                       .append("<br>");
+                        .append(" - ₹")
+                        .append(rs.getDouble("amount"))
+                        .append(" on ")
+                        .append(rs.getTimestamp("date_time"))
+                        .append("<br>");
             }
             if (!hasRecords) {
                 history.append("No recent transactions found.<br>");
@@ -311,6 +316,7 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
+    // ✅ Step 10: Run Application
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new AtmGui());
     }
