@@ -150,35 +150,61 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
-    private void performLogin() {
-        String selectedBank = cbBank.getSelectedItem().toString();
-        String pinText = new String(txtPin.getPassword()).trim();
+  private void performLogin() {
+    String selectedBank = cbBank.getSelectedItem().toString();
+    String pinText = new String(txtPin.getPassword()).trim();
 
-        if (pinText.length() != 4) {
-            lblMessage.setText("❌ PIN must be 4 digits!");
-            return;
-        }
-
-        try {
-            PreparedStatement ps = con.prepareStatement(
-                    "SELECT * FROM accounts WHERE bank_name=? AND pin=?");
-            ps.setString(1, selectedBank);
-            ps.setInt(2, Integer.parseInt(pinText));
-
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                accountId = rs.getInt("id");
-                currentBalance = rs.getDouble("balance");
-                lblMessage.setText("");
-                CardLayout cl = (CardLayout) getContentPane().getLayout();
-                cl.show(getContentPane(), "Menu");
-            } else {
-                lblMessage.setText("❌ Invalid PIN! Try again.");
-            }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Login Error: " + ex.getMessage());
-        }
+    if (pinText.length() != 4) {
+        lblMessage.setText("❌ PIN must be 4 digits!");
+        return;
     }
+
+    try {
+        // STEP 1: Verify account
+        PreparedStatement ps1 = con.prepareStatement(
+            "SELECT * FROM accounts WHERE bank_name=? AND pin=?");
+        ps1.setString(1, selectedBank);
+        ps1.setInt(2, Integer.parseInt(pinText));
+        ResultSet rs1 = ps1.executeQuery();
+
+        if (rs1.next()) {
+            accountId = rs1.getInt("id");
+            currentBalance = rs1.getDouble("balance");
+            lblMessage.setText("");
+
+            // STEP 2: Fetch user info
+            PreparedStatement ps2 = con.prepareStatement(
+                "SELECT u.name, u.phone, a.bank_name, a.balance " +
+                "FROM users u JOIN accounts a ON u.account_id = a.id " +
+                "WHERE a.id = ?");
+            ps2.setInt(1, accountId);
+
+            ResultSet rs2 = ps2.executeQuery();
+            if (rs2.next()) {
+                String name = rs2.getString("name");
+                String phone = rs2.getString("phone");
+                String bank = rs2.getString("bank_name");
+                double balance = rs2.getDouble("balance");
+
+                JOptionPane.showMessageDialog(this,
+                    "Welcome, " + name + "\n" +
+                    "Bank: " + bank + "\n" +
+                    "Phone: " + phone + "\n" +
+                    "Balance: ₹" + balance);
+            }
+
+            // STEP 3: Go to menu
+            CardLayout cl = (CardLayout) getContentPane().getLayout();
+            cl.show(getContentPane(), "Menu");
+
+        } else {
+            lblMessage.setText("❌ Invalid PIN! Try again.");
+        }
+
+    } catch (SQLException ex) {
+        JOptionPane.showMessageDialog(this, "Login Error: " + ex.getMessage());
+    }
+}
 
     private void performDeposit() {
         String input = JOptionPane.showInputDialog(this, "Enter amount to deposit:");
