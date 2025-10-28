@@ -58,6 +58,7 @@ public class AtmGui extends JFrame implements ActionListener {
             System.exit(0);
         }
     }
+
     // 🔹 LOGIN PANEL
     void createLoginPanel() {
         loginPanel = new JPanel(new GridBagLayout());
@@ -131,7 +132,7 @@ public class AtmGui extends JFrame implements ActionListener {
                 currentBalance = rs.getDouble("balance");
                 currentBank = rs.getString("bank_name");
 
-                // Fetch user details from users table
+                // Fetch user details
                 PreparedStatement ps2 = con.prepareStatement(
                         "SELECT name, phone FROM users WHERE account_id=?");
                 ps2.setInt(1, accountId);
@@ -145,7 +146,6 @@ public class AtmGui extends JFrame implements ActionListener {
                     currentPhone = "N/A";
                 }
 
-                // Show info bar
                 lblUserInfo.setText("👋 Welcome, " + currentUserName +
                         " | Bank: " + currentBank +
                         " | Phone: " + currentPhone +
@@ -173,6 +173,7 @@ public class AtmGui extends JFrame implements ActionListener {
                 double amt = Double.parseDouble(amountStr);
                 currentBalance += amt;
                 updateBalance();
+                saveTransaction("Deposit", amt);
                 JOptionPane.showMessageDialog(this, "✅ ₹" + amt + " deposited successfully!");
             }
         } else if (e.getSource() == btnWithdraw) {
@@ -182,6 +183,7 @@ public class AtmGui extends JFrame implements ActionListener {
                 if (amt <= currentBalance) {
                     currentBalance -= amt;
                     updateBalance();
+                    saveTransaction("Withdraw", amt);
                     JOptionPane.showMessageDialog(this, "✅ ₹" + amt + " withdrawn successfully!");
                 } else {
                     JOptionPane.showMessageDialog(this, "❌ Insufficient balance!");
@@ -189,6 +191,8 @@ public class AtmGui extends JFrame implements ActionListener {
             }
         } else if (e.getSource() == btnCheck) {
             JOptionPane.showMessageDialog(this, "💰 Current Balance: ₹" + currentBalance);
+        } else if (e.getSource() == btnHistory) {
+            showTransactionHistory();
         } else if (e.getSource() == btnExit) {
             System.exit(0);
         }
@@ -211,19 +215,41 @@ public class AtmGui extends JFrame implements ActionListener {
             JOptionPane.showMessageDialog(this, "Error updating balance: " + e.getMessage());
         }
     }
+
+    // 🔹 Save transaction
     void saveTransaction(String type, double amount) {
-    try {
-        PreparedStatement ps = con.prepareStatement(
-                "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
-        ps.setInt(1, accountId);
-        ps.setString(2, type);
-        ps.setDouble(3, amount);
-        ps.setDouble(4, currentBalance);
-        ps.executeUpdate();
-    } catch (SQLException e) {
-        JOptionPane.showMessageDialog(this, "Error saving transaction: " + e.getMessage());
+        try {
+            PreparedStatement ps = con.prepareStatement(
+                    "INSERT INTO transactions (account_id, type, amount) VALUES (?, ?, ?)");
+            ps.setInt(1, accountId);
+            ps.setString(2, type);
+            ps.setDouble(3, amount);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error saving transaction: " + e.getMessage());
+        }
     }
-}
+
+    // 🔹 Show last 5 transactions
+    void showTransactionHistory() {
+        try {
+            PreparedStatement ps = con.prepareStatement(
+                    "SELECT type, amount, date_time FROM transactions WHERE account_id=? ORDER BY date_time DESC LIMIT 5");
+            ps.setInt(1, accountId);
+            ResultSet rs = ps.executeQuery();
+
+            StringBuilder sb = new StringBuilder("🧾 Last 5 Transactions:\n\n");
+            while (rs.next()) {
+                sb.append(rs.getString("date_time")).append(" → ")
+                        .append(rs.getString("type")).append(" ₹")
+                        .append(rs.getDouble("amount")).append("\n");
+            }
+
+            JOptionPane.showMessageDialog(this, sb.toString());
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error fetching history: " + e.getMessage());
+        }
+    }
 
     public static void main(String[] args) {
         new AtmGui();
