@@ -3,11 +3,13 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import java.sql.*;
 import java.util.Properties;
 import java.io.FileInputStream;
 import java.io.IOException;
 import javax.swing.Timer;
+
 // ATM GUI Application
 public class AtmGui extends JFrame {
 
@@ -33,7 +35,7 @@ public class AtmGui extends JFrame {
 
     // animation stiffness
     private static final int SLIDE_ANIM_MS = 12;
-    private static final int SLIDE_STEP = 40;
+    private static final int SLIDE_STEPS = 20; // smoother animation
 
     public AtmGui() {
         loadLookAndFeel();
@@ -50,7 +52,7 @@ public class AtmGui extends JFrame {
         } catch (Exception ignored) {}
     }
 
-    // db connection loader (your version)
+    // db connection loader (unchanged as requested)
     public void loadDBConnection() {
         try {
             Properties props = new Properties();
@@ -90,7 +92,8 @@ public class AtmGui extends JFrame {
         rootPanel.add(withdrawPanel, "withdraw");
         rootPanel.add(balancePanel, "balance");
 
-        add(rootPanel);
+        // ensure initial visible card
+        cardLayout.show(rootPanel, "login");
     }
 
     // ---------- Panel creators ----------
@@ -179,6 +182,8 @@ public class AtmGui extends JFrame {
         btnLogout.addActionListener(ae -> {
             accountId = -1;
             currentBalance = 0;
+            // clear any sensitive fields
+            txtPin.setText("");
             slideTo("login", SlideDirection.RIGHT);
         });
         JPanel hdrRight = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -261,14 +266,22 @@ public class AtmGui extends JFrame {
         FancyButton ok = new FancyButton("Confirm Deposit");
         ok.setAlignmentX(Component.CENTER_ALIGNMENT);
         ok.addActionListener(ae -> {
+            String s = tfAmount.getText().trim();
+            if (s.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Enter amount to deposit.", "Invalid", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             try {
-                double amount = Double.parseDouble(tfAmount.getText().trim());
-                if (amount <= 0) throw new NumberFormatException();
+                double amount = Double.parseDouble(s);
+                if (amount <= 0) {
+                    JOptionPane.showMessageDialog(this, "Amount must be greater than zero.", "Invalid", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
                 performDeposit(amount);
                 tfAmount.setText("");
                 slideTo("menu", SlideDirection.RIGHT);
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Enter a valid positive amount.", "Invalid", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Enter a valid number for amount.", "Invalid", JOptionPane.ERROR_MESSAGE);
             }
         });
         card.add(ok);
@@ -308,14 +321,26 @@ public class AtmGui extends JFrame {
         FancyButton ok = new FancyButton("Confirm Withdraw");
         ok.setAlignmentX(Component.CENTER_ALIGNMENT);
         ok.addActionListener(ae -> {
+            String s = tfAmount.getText().trim();
+            if (s.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Enter amount to withdraw.", "Invalid", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             try {
-                double amount = Double.parseDouble(tfAmount.getText().trim());
-                if (amount <= 0) throw new NumberFormatException();
+                double amount = Double.parseDouble(s);
+                if (amount <= 0) {
+                    JOptionPane.showMessageDialog(this, "Amount must be greater than zero.", "Invalid", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                if (amount > currentBalance) {
+                    JOptionPane.showMessageDialog(this, "Insufficient funds.", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
                 performWithdraw(amount);
                 tfAmount.setText("");
                 slideTo("menu", SlideDirection.RIGHT);
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Enter a valid positive amount.", "Invalid", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Enter a valid number for amount.", "Invalid", JOptionPane.ERROR_MESSAGE);
             }
         });
         card.add(ok);
@@ -374,48 +399,97 @@ public class AtmGui extends JFrame {
         return new Color(255, 140, 45);
     }
 
-    // slide to panel with animation
+    // slide to panel with robust overlay animation
     private enum SlideDirection { LEFT, RIGHT }
 
     private void slideTo(String name, SlideDirection dir) {
-        // if simple switch is fine: keep CardLayout show then animate a small slide feel by translating panels
         Component current = getVisibleCard();
         Component next = getPanelByName(name);
         if (current == next) return;
 
+        // Ensure layout done and sizes known
+        rootPanel.validate();
         Dimension size = rootPanel.getSize();
-        int startX = (dir == SlideDirection.LEFT) ? size.width : -size.width;
+        if (size.width <= 0 || size.height <= 0) {
+            cardLayout.show(rootPanel, name);
+            return;
+        }
 
-        // prepare next for animation
-        next.setVisible(true);
-        next.setLocation(startX, 0);
+        // Snapshot current
+        BufferedImage imgCur = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D gcur = imgCur.createGraphics();
+        current.paint(gcur);
+        gcur.dispose();
 
+        // Show next briefly to snapshot it (will be replaced by overlay immediately)
+        cardLayout.show(rootPanel, name);
+        rootPanel.validate();
+        BufferedImage imgNext = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D gnext = imgNext.createGraphics();
+        next.paint(gnext);
+        gnext.dispose();
+
+        // revert to current until animation completes
+        cardLayout.show(rootPanel, getNameOfComponent(current));
+
+        // Prepare overlay labels
+        JLabel labCur = new JLabel(new ImageIcon(imgCur));
+        JLabel labNext = new JLabel(new ImageIcon(imgNext));
+
+        JLayeredPane layered = getLayeredPane();
+        JPanel overlay = new JPanel(null);
+        overlay.setOpaque(false);
+        overlay.setBounds(rootPanel.getBounds());
+
+        int startXCur = 0;
+        int startXNext = (dir == SlideDirection.LEFT) ? size.width : -size.width;
+        labCur.setBounds(startXCur, 0, size.width, size.height);
+        labNext.setBounds(startXNext, 0, size.width, size.height);
+
+        overlay.add(labCur);
+        overlay.add(labNext);
+
+        layered.add(overlay, JLayeredPane.DRAG_LAYER);
+        layered.revalidate();
+        layered.repaint();
+
+        // Animation timer
         Timer t = new Timer(SLIDE_ANIM_MS, null);
         t.addActionListener(new ActionListener() {
-            int x = startX;
+            int step = 0;
             public void actionPerformed(ActionEvent e) {
-                if (dir == SlideDirection.LEFT) x -= SLIDE_STEP;
-                else x += SLIDE_STEP;
-                if ((dir == SlideDirection.LEFT && x <= 0) || (dir == SlideDirection.RIGHT && x >= 0)) {
-                    next.setLocation(0,0);
-                    cardLayout.show(rootPanel, name);
-                    // ensure current hidden
-                    current.setVisible(false);
-                    t.stop();
+                step++;
+                double frac = (double) step / SLIDE_STEPS;
+                int delta = (int) (frac * size.width);
+                if (dir == SlideDirection.LEFT) {
+                    labCur.setLocation(-delta, 0);
+                    labNext.setLocation(size.width - delta, 0);
                 } else {
-                    next.setLocation(x, 0);
+                    labCur.setLocation(delta, 0);
+                    labNext.setLocation(-size.width + delta, 0);
+                }
+                overlay.repaint();
+                if (step >= SLIDE_STEPS) {
+                    t.stop();
+                    // finally show the real panel and cleanup
+                    cardLayout.show(rootPanel, name);
+                    SwingUtilities.invokeLater(() -> {
+                        layered.remove(overlay);
+                        layered.revalidate();
+                        layered.repaint();
+                    });
                 }
             }
         });
         t.start();
-        // also tell CardLayout to show in the end
-        cardLayout.show(rootPanel, name);
     }
 
+    // helper to find which component is visible
     private Component getVisibleCard() {
         for (Component c : rootPanel.getComponents()) {
             if (c.isVisible()) return c;
         }
+        // fallback to currently shown by CardLayout
         return loginPanel;
     }
 
@@ -428,6 +502,16 @@ public class AtmGui extends JFrame {
             case "balance": return balancePanel;
             default: return loginPanel;
         }
+    }
+
+    // reverse mapping to restore a card by component
+    private String getNameOfComponent(Component comp) {
+        if (comp == loginPanel) return "login";
+        if (comp == menuPanel) return "menu";
+        if (comp == depositPanel) return "deposit";
+        if (comp == withdrawPanel) return "withdraw";
+        if (comp == balancePanel) return "balance";
+        return "login";
     }
 
     private void setFullScreen() {
@@ -454,6 +538,11 @@ public class AtmGui extends JFrame {
             JOptionPane.showMessageDialog(this, "Enter PIN", "Login", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        // quick PIN format check (4 digits expected) - non-blocking
+        if (!pin.matches("\\d{4}")) {
+            int r = JOptionPane.showConfirmDialog(this, "PIN should be 4 digits. Continue anyway?", "PIN format", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (r != JOptionPane.YES_OPTION) return;
+        }
         try {
             PreparedStatement ps = con.prepareStatement("SELECT id, balance FROM accounts WHERE bank_name=? AND pin=?");
             ps.setString(1, bank);
@@ -467,6 +556,8 @@ public class AtmGui extends JFrame {
             } else {
                 JOptionPane.showMessageDialog(this, "Invalid credentials", "Login failed", JOptionPane.ERROR_MESSAGE);
             }
+            rs.close();
+            ps.close();
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Login error: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -483,6 +574,7 @@ public class AtmGui extends JFrame {
             ps.setDouble(1, currentBalance);
             ps.setInt(2, accountId);
             ps.executeUpdate();
+            ps.close();
 
             PreparedStatement ts = con.prepareStatement(
                     "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
@@ -491,6 +583,7 @@ public class AtmGui extends JFrame {
             ts.setDouble(3, amount);
             ts.setDouble(4, currentBalance);
             ts.executeUpdate();
+            ts.close();
 
             JOptionPane.showMessageDialog(this, "Deposited: ₹" + amount + "\nNew balance: ₹" + currentBalance,
                     "Success", JOptionPane.INFORMATION_MESSAGE);
@@ -514,6 +607,7 @@ public class AtmGui extends JFrame {
             ps.setDouble(1, currentBalance);
             ps.setInt(2, accountId);
             ps.executeUpdate();
+            ps.close();
 
             PreparedStatement ts = con.prepareStatement(
                     "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
@@ -522,6 +616,7 @@ public class AtmGui extends JFrame {
             ts.setDouble(3, amount);
             ts.setDouble(4, currentBalance);
             ts.executeUpdate();
+            ts.close();
 
             JOptionPane.showMessageDialog(this, "Withdrawn: ₹" + amount + "\nNew balance: ₹" + currentBalance,
                     "Success", JOptionPane.INFORMATION_MESSAGE);
@@ -574,6 +669,8 @@ public class AtmGui extends JFrame {
             JLabel label = new JLabel(sb.toString());
             label.setForeground(Color.WHITE);
             JOptionPane.showMessageDialog(this, label, "Transaction History", JOptionPane.PLAIN_MESSAGE);
+            rs.close();
+            ps.close();
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "History fetch error: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
         }
