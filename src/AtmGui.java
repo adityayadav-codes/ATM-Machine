@@ -1,46 +1,60 @@
+
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.FileInputStream;
+import java.awt.geom.RoundRectangle2D;
 import java.sql.*;
 import java.util.Properties;
+import java.io.FileInputStream;
+import java.io.IOException;
+import javax.swing.Timer;
 
-public class AtmGui extends JFrame implements ActionListener {
+public class AtmGui extends JFrame {
 
-    JPanel loginPanel, menuPanel;
-    JLabel lblBank, lblPin, lblMessage;
-    JComboBox<String> cbBank;
-    JPasswordField txtPin;
-    JButton btnLogin, btnDeposit, btnWithdraw, btnCheckBalance, btnExit, btnHistory;
+    // panels
+    private JPanel rootPanel;               
+    private CardLayout cardLayout;
+    private SlidePanel loginPanel, menuPanel, depositPanel, withdrawPanel, balancePanel;
 
-    Connection con;
-    int accountId = -1;
-    double currentBalance = 0;
+    // login components
+    private JComboBox<String> cbBank;
+    private JPasswordField txtPin;
+    private FancyButton btnLogin;
+
+    // menu buttons
+    private FancyButton btnDeposit, btnWithdraw, btnCheckBalance, btnHistory, btnExit, btnLogout;
+
+    // DB
+    private Connection con;
+
+    // session
+    private int accountId = -1;
+    private double currentBalance = 0.0;
+
+    // animation stiffness
+    private static final int SLIDE_ANIM_MS = 14;
+    private static final int SLIDE_STEP = 40;
 
     public AtmGui() {
-        setTitle("ATM Simulator");
-        setSize(500, 450);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
-        setLayout(new CardLayout());
+        loadLookAndFeel();
+        loadDBConnection();
 
-        try {
-            connectDB();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        initLoginPanel();
-        initMenuPanel();
-
-        add(loginPanel, "Login");
-        add(menuPanel, "Menu");
-
+        initUI();
+        setFullScreen();
         setVisible(true);
     }
 
-    // Database connection
-    public void connectDB() {
+    private void loadLookAndFeel() {
+        try {
+            // optional: platform LAF
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {}
+    }
+
+    
+// db connection loader
+public void loadDBConnection() {
         try {
             Properties props = new Properties();
             props.load(new FileInputStream("config.properties"));
@@ -60,263 +74,631 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
-    // Login Panel 
-    private void initLoginPanel() {
-        loginPanel = new JPanel();
-        loginPanel.setLayout(null);
-        loginPanel.setBackground(Color.LIGHT_GRAY);
+//
+    private void initUI() {
+        // root
+        cardLayout = new CardLayout();
+        rootPanel = new JPanel(cardLayout);
+        rootPanel.setBackground(darkColor());
 
-        JLabel lblTitle = new JLabel("Welcome to ATM Simulator");
-        lblTitle.setFont(new Font("Arial", Font.BOLD, 20));
-        lblTitle.setBounds(80, 20, 350, 30);
-        loginPanel.add(lblTitle);
+        // panels
+        loginPanel = createLoginPanel();
+        menuPanel = createMenuPanel();
+        depositPanel = createDepositPanel();
+        withdrawPanel = createWithdrawPanel();
+        balancePanel = createBalancePanel();
 
-        lblBank = new JLabel("Select Bank:");
-        lblBank.setBounds(50, 80, 100, 25);
-        loginPanel.add(lblBank);
+        rootPanel.add(loginPanel, "login");
+        rootPanel.add(menuPanel, "menu");
+        rootPanel.add(depositPanel, "deposit");
+        rootPanel.add(withdrawPanel, "withdraw");
+        rootPanel.add(balancePanel, "balance");
 
+        add(rootPanel);
+    }
+
+    // ---------- Panel creators ----------
+
+    private SlidePanel createLoginPanel() {
+        SlidePanel p = new SlidePanel();
+        p.setLayout(new GridBagLayout());
+        p.setBackground(darkColor());
+
+        JPanel card = new JPanel();
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(30, 30, 30, 30));
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("ATM");
+        title.setFont(new Font("Dialog", Font.BOLD, 40));
+        title.setForeground(orangeGlow());
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        title.setBorder(new EmptyBorder(0,0,12,0));
+        card.add(title);
+
+        JLabel sub = new JLabel("Welcome — Please login");
+        sub.setForeground(Color.LIGHT_GRAY);
+        sub.setAlignmentX(Component.CENTER_ALIGNMENT);
+        sub.setBorder(new EmptyBorder(0,0,20,0));
+        card.add(sub);
+
+        // bank selector
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        row1.setOpaque(false);
+        JLabel lb = new JLabel("Bank:");
+        lb.setForeground(Color.WHITE);
         cbBank = new JComboBox<>(new String[]{"SBI", "PNB", "Union"});
-        cbBank.setBounds(160, 80, 150, 25);
-        loginPanel.add(cbBank);
+        cbBank.setPreferredSize(new Dimension(240, 36));
+        cbBank.setBackground(Color.DARK_GRAY);
+        cbBank.setForeground(Color.WHITE);
+        row1.add(lb); row1.add(cbBank);
+        card.add(row1);
+        card.add(Box.createVerticalStrut(12));
 
-        lblPin = new JLabel("Enter 4-digit PIN:");
-        lblPin.setBounds(50, 130, 120, 25);
-        loginPanel.add(lblPin);
-
+        // pin
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        row2.setOpaque(false);
+        JLabel lp = new JLabel("PIN:");
+        lp.setForeground(Color.WHITE);
         txtPin = new JPasswordField();
-        txtPin.setBounds(180, 130, 130, 25);
-        loginPanel.add(txtPin);
+        txtPin.setPreferredSize(new Dimension(240, 36));
+        row2.add(lp); row2.add(txtPin);
+        card.add(row2);
+        card.add(Box.createVerticalStrut(18));
 
-        btnLogin = new JButton("Login");
-        btnLogin.setBounds(180, 180, 100, 30);
-        btnLogin.addActionListener(this);
-        loginPanel.add(btnLogin);
-
-        lblMessage = new JLabel("");
-        lblMessage.setBounds(50, 230, 400, 25);
-        lblMessage.setForeground(Color.RED);
-        loginPanel.add(lblMessage);
-    }
-
-    //  Menu Panel
-    private void initMenuPanel() {
-        menuPanel = new JPanel();
-        menuPanel.setLayout(null);
-        menuPanel.setBackground(Color.WHITE);
-
-        JLabel lblMenu = new JLabel("Select Operation");
-        lblMenu.setFont(new Font("Arial", Font.BOLD, 18));
-        lblMenu.setBounds(150, 30, 200, 30);
-        menuPanel.add(lblMenu);
-
-        btnDeposit = new JButton("Deposit");
-        btnDeposit.setBounds(50, 80, 150, 40);
-        btnDeposit.addActionListener(this);
-        menuPanel.add(btnDeposit);
-
-        btnWithdraw = new JButton("Withdraw");
-        btnWithdraw.setBounds(250, 80, 150, 40);
-        btnWithdraw.addActionListener(this);
-        menuPanel.add(btnWithdraw);
-
-        btnCheckBalance = new JButton("Check Balance");
-        btnCheckBalance.setBounds(150, 150, 150, 40);
-        btnCheckBalance.addActionListener(this);
-        menuPanel.add(btnCheckBalance);
-
-        btnHistory = new JButton("Transaction History");
-        btnHistory.setBounds(150, 220, 150, 40);
-        btnHistory.addActionListener(this);
-        menuPanel.add(btnHistory);
-
-        btnExit = new JButton("Exit");
-        btnExit.setBounds(150, 290, 150, 40);
-        btnExit.addActionListener(this);
-        menuPanel.add(btnExit);
-    }
-
-    // Button Actions
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        if (e.getSource() == btnLogin) {
+        // login button
+        btnLogin = new FancyButton("Insert Card / Login");
+        btnLogin.setPreferredSize(new Dimension(320, 48));
+        btnLogin.addActionListener(ae -> {
             performLogin();
-        } else if (e.getSource() == btnDeposit) {
-            performDeposit();
-        } else if (e.getSource() == btnWithdraw) {
-            performWithdraw();
-        } else if (e.getSource() == btnCheckBalance) {
-            showBalance();
-        } else if (e.getSource() == btnHistory) {
-            showTransactionHistory();
-        } else if (e.getSource() == btnExit) {
-            JOptionPane.showMessageDialog(this, "Thank you for using ATM Simulator!");
-            System.exit(0);
-        }
+        });
+        btnLogin.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(btnLogin);
+
+        // footer hint
+        JLabel tip = new JLabel("<html><center>Use your 4-digit PIN<br>Or use test accounts in DB</center></html>");
+        tip.setForeground(Color.GRAY);
+        tip.setBorder(new EmptyBorder(18,0,0,0));
+        tip.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(tip);
+
+        p.add(card);
+        return p;
     }
 
-    // Login Logic (with user info)
-    private void performLogin() {
-        String selectedBank = cbBank.getSelectedItem().toString();
-        String pinText = new String(txtPin.getPassword()).trim();
+    private SlidePanel createMenuPanel() {
+        SlidePanel p = new SlidePanel();
+        p.setLayout(new BorderLayout());
+        p.setBackground(darkColor());
 
-        if (pinText.length() != 4) {
-            lblMessage.setText("❌ PIN must be 4 digits!");
+        // header
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel title = new JLabel("Account Menu");
+        title.setFont(new Font("Dialog", Font.BOLD, 28));
+        title.setForeground(orangeGlow());
+        title.setBorder(new EmptyBorder(24,24,12,24));
+        header.add(title, BorderLayout.WEST);
+
+        btnLogout = new FancyButton("Logout");
+        btnLogout.setPreferredSize(new Dimension(120,40));
+        btnLogout.addActionListener(ae -> {
+            accountId = -1;
+            currentBalance = 0;
+            slideTo("login", SlideDirection.RIGHT);
+        });
+        JPanel hdrRight = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        hdrRight.setOpaque(false);
+        hdrRight.add(btnLogout);
+        header.add(hdrRight, BorderLayout.EAST);
+
+        p.add(header, BorderLayout.NORTH);
+
+        // center grid of big buttons
+        JPanel center = new JPanel(new GridBagLayout());
+        center.setOpaque(false);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(14, 14, 14, 14);
+        gbc.ipadx = 20; gbc.ipady = 20;
+        gbc.gridx = 0; gbc.gridy = 0;
+
+        btnDeposit = new FancyButton("Deposit");
+        btnDeposit.setPreferredSize(new Dimension(260, 70));
+        btnDeposit.addActionListener(ae -> slideTo("deposit", SlideDirection.LEFT));
+        center.add(btnDeposit, gbc);
+
+        gbc.gridx = 1;
+        btnWithdraw = new FancyButton("Withdraw");
+        btnWithdraw.setPreferredSize(new Dimension(260, 70));
+        btnWithdraw.addActionListener(ae -> slideTo("withdraw", SlideDirection.LEFT));
+        center.add(btnWithdraw, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1;
+        btnCheckBalance = new FancyButton("Check Balance");
+        btnCheckBalance.setPreferredSize(new Dimension(260, 70));
+        btnCheckBalance.addActionListener(ae -> {
+            showBalance();
+            slideTo("balance", SlideDirection.LEFT);
+        });
+        center.add(btnCheckBalance, gbc);
+
+        gbc.gridx = 1;
+        btnHistory = new FancyButton("Transaction History");
+        btnHistory.setPreferredSize(new Dimension(260, 70));
+        btnHistory.addActionListener(ae -> {
+            showHistory();
+        });
+        center.add(btnHistory, gbc);
+
+        p.add(center, BorderLayout.CENTER);
+
+        // footer exit
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        footer.setOpaque(false);
+        btnExit = new FancyButton("Exit");
+        btnExit.setPreferredSize(new Dimension(160, 48));
+        btnExit.addActionListener(ae -> {
+            System.exit(0);
+        });
+        footer.add(btnExit);
+        p.add(footer, BorderLayout.SOUTH);
+
+        return p;
+    }
+
+    private SlidePanel createDepositPanel() {
+        SlidePanel p = new SlidePanel();
+        p.setLayout(new GridBagLayout());
+        p.setBackground(darkColor());
+
+        JPanel card = new JPanel();
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(new EmptyBorder(18,18,18,18));
+
+        JLabel lbl = new JLabel("Deposit Amount");
+        lbl.setForeground(orangeGlow());
+        lbl.setFont(new Font("Dialog", Font.BOLD, 26));
+        lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(lbl);
+        card.add(Box.createVerticalStrut(14));
+
+        JTextField tfAmount = new JTextField();
+        tfAmount.setMaximumSize(new Dimension(360, 44));
+        card.add(tfAmount);
+        card.add(Box.createVerticalStrut(12));
+
+        FancyButton ok = new FancyButton("Confirm Deposit");
+        ok.setAlignmentX(Component.CENTER_ALIGNMENT);
+        ok.addActionListener(ae -> {
+            try {
+                double amount = Double.parseDouble(tfAmount.getText().trim());
+                if (amount <= 0) throw new NumberFormatException();
+                performDeposit(amount);
+                tfAmount.setText("");
+                slideTo("menu", SlideDirection.RIGHT);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Enter a valid positive amount.", "Invalid", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        card.add(ok);
+        card.add(Box.createVerticalStrut(8));
+
+        FancyButton back = new FancyButton("Back");
+        back.setAlignmentX(Component.CENTER_ALIGNMENT);
+        back.addActionListener(ae -> slideTo("menu", SlideDirection.RIGHT));
+        card.add(back);
+
+        p.add(card);
+        return p;
+    }
+
+    private SlidePanel createWithdrawPanel() {
+        SlidePanel p = new SlidePanel();
+        p.setLayout(new GridBagLayout());
+        p.setBackground(darkColor());
+
+        JPanel card = new JPanel();
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(new EmptyBorder(18,18,18,18));
+
+        JLabel lbl = new JLabel("Withdraw Amount");
+        lbl.setForeground(orangeGlow());
+        lbl.setFont(new Font("Dialog", Font.BOLD, 26));
+        lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(lbl);
+        card.add(Box.createVerticalStrut(14));
+
+        JTextField tfAmount = new JTextField();
+        tfAmount.setMaximumSize(new Dimension(360, 44));
+        card.add(tfAmount);
+        card.add(Box.createVerticalStrut(12));
+
+        FancyButton ok = new FancyButton("Confirm Withdraw");
+        ok.setAlignmentX(Component.CENTER_ALIGNMENT);
+        ok.addActionListener(ae -> {
+            try {
+                double amount = Double.parseDouble(tfAmount.getText().trim());
+                if (amount <= 0) throw new NumberFormatException();
+                performWithdraw(amount);
+                tfAmount.setText("");
+                slideTo("menu", SlideDirection.RIGHT);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Enter a valid positive amount.", "Invalid", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        card.add(ok);
+        card.add(Box.createVerticalStrut(8));
+
+        FancyButton back = new FancyButton("Back");
+        back.setAlignmentX(Component.CENTER_ALIGNMENT);
+        back.addActionListener(ae -> slideTo("menu", SlideDirection.RIGHT));
+        card.add(back);
+
+        p.add(card);
+        return p;
+    }
+
+    private SlidePanel createBalancePanel() {
+        SlidePanel p = new SlidePanel();
+        p.setLayout(new GridBagLayout());
+        p.setBackground(darkColor());
+
+        JPanel card = new JPanel();
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(new EmptyBorder(18,18,18,18));
+
+        JLabel lbl = new JLabel("Balance");
+        lbl.setForeground(orangeGlow());
+        lbl.setFont(new Font("Dialog", Font.BOLD, 26));
+        lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(lbl);
+        card.add(Box.createVerticalStrut(18));
+
+        JLabel bal = new JLabel(); // runtime updated
+        bal.setFont(new Font("Dialog", Font.PLAIN, 22));
+        bal.setForeground(Color.WHITE);
+        bal.setAlignmentX(Component.CENTER_ALIGNMENT);
+        bal.setName("balanceLabel");
+        card.add(bal);
+        card.add(Box.createVerticalStrut(20));
+
+        FancyButton back = new FancyButton("Back");
+        back.setAlignmentX(Component.CENTER_ALIGNMENT);
+        back.addActionListener(ae -> slideTo("menu", SlideDirection.RIGHT));
+        card.add(back);
+
+        p.add(card);
+        return p;
+    }
+
+    // ---------- Helper UI methods ----------
+
+    private Color darkColor() {
+        return new Color(18, 18, 20);
+    }
+
+    private Color orangeGlow() {
+        return new Color(255, 140, 45);
+    }
+
+    // slide to panel with animation
+    private enum SlideDirection { LEFT, RIGHT }
+
+    private void slideTo(String name, SlideDirection dir) {
+        Component current = getVisibleCard();
+        Component next = findCardComponent(name);
+        if (current == next) return;
+
+        // set next invisible in layer and add to glasspane as we animate
+        Point start = next.getLocation();
+        Dimension size = rootPanel.getSize();
+
+        int fromX = (dir == SlideDirection.LEFT) ? size.width : -size.width;
+        int toX = 0;
+
+        next.setLocation(fromX, 0);
+        next.setVisible(true);
+
+        Timer t = new Timer(SLIDE_ANIM_MS, null);
+        t.addActionListener(new ActionListener() {
+            int x = fromX;
+            public void actionPerformed(ActionEvent e) {
+                if (dir == SlideDirection.LEFT) x -= SLIDE_STEP;
+                else x += SLIDE_STEP;
+                if ((dir == SlideDirection.LEFT && x <= toX) || (dir == SlideDirection.RIGHT && x >= toX)) {
+                    next.setLocation(0,0);
+                    current.setVisible(false);
+                    cardLayout.show(rootPanel, name);
+                    t.stop();
+                } else {
+                    next.setLocation(x, 0);
+                    // move current in opposite direction slightly to create parallax
+                    int curX = x + ((dir == SlideDirection.LEFT) ? -size.width : size.width);
+                    current.setLocation(curX, 0);
+                }
+            }
+        });
+        t.start();
+        // ensure card layout will show the right component after animation
+        cardLayout.show(rootPanel, name);
+    }
+
+    private Component getVisibleCard() {
+        for (Component c : rootPanel.getComponents()) {
+            if (c.isVisible()) return c;
+        }
+        // fallback
+        return rootPanel.getComponent(0);
+    }
+
+    private Component findCardComponent(String name) {
+        for (Component c : rootPanel.getComponents()) {
+            if (name.equals(rootPanel.getComponentZOrder(c) >= 0 ? getNameForComponent(c) : null)) {
+                return c;
+            }
+        }
+        // fallback by matching class or panel type
+        for (Component c : rootPanel.getComponents()) {
+            if (c instanceof SlidePanel) {
+                // crude: map by reference
+                if (name.equals("login") && c == loginPanel) return c;
+                if (name.equals("menu") && c == menuPanel) return c;
+                if (name.equals("deposit") && c == depositPanel) return c;
+                if (name.equals("withdraw") && c == withdrawPanel) return c;
+                if (name.equals("balance") && c == balancePanel) return c;
+            }
+        }
+        return loginPanel;
+    }
+
+    private String getNameForComponent(Component c) {
+        if (c == loginPanel) return "login";
+        if (c == menuPanel) return "menu";
+        if (c == depositPanel) return "deposit";
+        if (c == withdrawPanel) return "withdraw";
+        if (c == balancePanel) return "balance";
+        return null;
+    }
+
+    private void setFullScreen() {
+        setUndecorated(true);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        GraphicsDevice gd = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+        if (gd.isFullScreenSupported()) {
+            gd.setFullScreenWindow(this);
+        } else {
+            setExtendedState(JFrame.MAXIMIZED_BOTH);
+            setVisible(true);
+        }
+        // center root panel sizing
+        setLayout(new BorderLayout());
+        add(rootPanel, BorderLayout.CENTER);
+        validate();
+    }
+
+    // ---------- Business & DB Logic (kept / adapted) ----------
+
+    private void performLogin() {
+        String bank = (String) cbBank.getSelectedItem();
+        String pin = new String(txtPin.getPassword()).trim();
+        if (pin.length() == 0) {
+            JOptionPane.showMessageDialog(this, "Enter PIN", "Login", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
         try {
-            PreparedStatement ps1 = con.prepareStatement(
-                    "SELECT * FROM accounts WHERE bank_name=? AND pin=?");
-            ps1.setString(1, selectedBank);
-            ps1.setInt(2, Integer.parseInt(pinText));
-            ResultSet rs1 = ps1.executeQuery();
-
-            if (rs1.next()) {
-                accountId = rs1.getInt("id");
-                currentBalance = rs1.getDouble("balance");
-                lblMessage.setText("");
-
-                // Fetch user info
-                PreparedStatement ps2 = con.prepareStatement(
-                        "SELECT u.name, u.phone, a.bank_name, a.balance " +
-                        "FROM users u JOIN accounts a ON u.account_id = a.id " +
-                        "WHERE a.id = ?");
-                ps2.setInt(1, accountId);
-                ResultSet rs2 = ps2.executeQuery();
-
-                if (rs2.next()) {
-                    String name = rs2.getString("name");
-                    String phone = rs2.getString("phone");
-                    String bank = rs2.getString("bank_name");
-                    double balance = rs2.getDouble("balance");
-
-                    JOptionPane.showMessageDialog(this,
-                            "Welcome, " + name + "\n" +
-                            "Bank: " + bank + "\n" +
-                            "Phone: " + phone + "\n" +
-                            "Balance: ₹" + balance);
-                }
-
-                CardLayout cl = (CardLayout) getContentPane().getLayout();
-                cl.show(getContentPane(), "Menu");
-
+            PreparedStatement ps = con.prepareStatement("SELECT id, balance FROM accounts WHERE bank_name=? AND pin=?");
+            ps.setString(1, bank);
+            ps.setString(2, pin);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                accountId = rs.getInt("id");
+                currentBalance = rs.getDouble("balance");
+                txtPin.setText("");
+                slideTo("menu", SlideDirection.LEFT);
             } else {
-                lblMessage.setText("❌ Invalid PIN! Try again.");
+                JOptionPane.showMessageDialog(this, "Invalid credentials", "Login failed", JOptionPane.ERROR_MESSAGE);
             }
-
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Login Error: " + ex.getMessage());
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Login error: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    // Deposit
-    private void performDeposit() {
-        String input = JOptionPane.showInputDialog(this, "Enter amount to deposit:");
-        if (input != null && !input.isEmpty()) {
-            try {
-                double amount = Double.parseDouble(input);
-                if (amount <= 0) {
-                    JOptionPane.showMessageDialog(this, "❌ Amount must be positive!");
-                    return;
-                }
-                currentBalance += amount;
+    private void performDeposit(double amount) {
+        if (accountId < 0) {
+            JOptionPane.showMessageDialog(this, "No account logged in", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        try {
+            currentBalance += amount;
+            PreparedStatement ps = con.prepareStatement("UPDATE accounts SET balance=? WHERE id=?");
+            ps.setDouble(1, currentBalance);
+            ps.setInt(2, accountId);
+            ps.executeUpdate();
 
-                PreparedStatement ps = con.prepareStatement(
-                        "UPDATE accounts SET balance=? WHERE id=?");
-                ps.setDouble(1, currentBalance);
-                ps.setInt(2, accountId);
-                ps.executeUpdate();
+            PreparedStatement ts = con.prepareStatement(
+                    "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
+            ts.setInt(1, accountId);
+            ts.setString(2, "Deposit");
+            ts.setDouble(3, amount);
+            ts.setDouble(4, currentBalance);
+            ts.executeUpdate();
 
-                PreparedStatement ts = con.prepareStatement(
-                        "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
-                ts.setInt(1, accountId);
-                ts.setString(2, "Deposit");
-                ts.setDouble(3, amount);
-                ts.setDouble(4, currentBalance);
-                ts.executeUpdate();
-
-                JOptionPane.showMessageDialog(this, "✅ Deposited: ₹" + amount +
-                        "\nUpdated Balance: ₹" + currentBalance);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "❌ Invalid amount!");
-            }
+            JOptionPane.showMessageDialog(this, "Deposited: ₹" + amount + "\nNew balance: ₹" + currentBalance,
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Deposit failed: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    //  Withdraw
-    private void performWithdraw() {
-        String input = JOptionPane.showInputDialog(this, "Enter amount to withdraw:");
-        if (input != null && !input.isEmpty()) {
-            try {
-                double amount = Double.parseDouble(input);
-                if (amount <= 0) {
-                    JOptionPane.showMessageDialog(this, "❌ Amount must be positive!");
-                    return;
-                }
-                if (amount > currentBalance) {
-                    JOptionPane.showMessageDialog(this, "❌ Insufficient balance!");
-                    return;
-                }
-                currentBalance -= amount;
-
-                PreparedStatement ps = con.prepareStatement(
-                        "UPDATE accounts SET balance=? WHERE id=?");
-                ps.setDouble(1, currentBalance);
-                ps.setInt(2, accountId);
-                ps.executeUpdate();
-
-                PreparedStatement ts = con.prepareStatement(
-                        "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
-                ts.setInt(1, accountId);
-                ts.setString(2, "Withdraw");
-                ts.setDouble(3, amount);
-                ts.setDouble(4, currentBalance);
-                ts.executeUpdate();
-
-                JOptionPane.showMessageDialog(this, "✅ Withdrawn: ₹" + amount +
-                        "\nUpdated Balance: ₹" + currentBalance);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "❌ Invalid amount!");
+    private void performWithdraw(double amount) {
+        if (accountId < 0) {
+            JOptionPane.showMessageDialog(this, "No account logged in", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        try {
+            if (amount > currentBalance) {
+                JOptionPane.showMessageDialog(this, "Insufficient funds", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
             }
+            currentBalance -= amount;
+            PreparedStatement ps = con.prepareStatement("UPDATE accounts SET balance=? WHERE id=?");
+            ps.setDouble(1, currentBalance);
+            ps.setInt(2, accountId);
+            ps.executeUpdate();
+
+            PreparedStatement ts = con.prepareStatement(
+                    "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
+            ts.setInt(1, accountId);
+            ts.setString(2, "Withdraw");
+            ts.setDouble(3, amount);
+            ts.setDouble(4, currentBalance);
+            ts.executeUpdate();
+
+            JOptionPane.showMessageDialog(this, "Withdrawn: ₹" + amount + "\nNew balance: ₹" + currentBalance,
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Withdraw failed: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    //  Balance Check
     private void showBalance() {
-        JOptionPane.showMessageDialog(this, "💰 Current Balance: ₹" + currentBalance);
+        // find the balance label in balancePanel and update text
+        JLabel label = findBalanceLabel(balancePanel);
+        if (label != null) {
+            label.setText(String.format("₹ %.2f", currentBalance));
+        }
     }
 
-    // Transaction History
-    private void showTransactionHistory() {
+    private JLabel findBalanceLabel(Container c) {
+        for (Component comp : c.getComponents()) {
+            if (comp instanceof JLabel && "balanceLabel".equals(comp.getName())) return (JLabel) comp;
+            if (comp instanceof Container) {
+                JLabel r = findBalanceLabel((Container) comp);
+                if (r != null) return r;
+            }
+        }
+        return null;
+    }
+
+    private void showHistory() {
+        if (accountId < 0) {
+            JOptionPane.showMessageDialog(this, "No account logged in", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         try {
             PreparedStatement ps = con.prepareStatement(
-                    "SELECT type, amount, date_time FROM transactions WHERE account_id=? ORDER BY date_time DESC LIMIT 5");
+                    "SELECT type, amount, balance_after, timestamp FROM transactions WHERE account_id=? ORDER BY timestamp DESC LIMIT 20");
             ps.setInt(1, accountId);
             ResultSet rs = ps.executeQuery();
-
-            StringBuilder history = new StringBuilder("<html><b>Last 5 Transactions:</b><br><br>");
-            boolean hasRecords = false;
+            StringBuilder sb = new StringBuilder("<html><body style='width:360px'>");
+            boolean found = false;
             while (rs.next()) {
-                hasRecords = true;
-                history.append(rs.getString("type"))
-                        .append(" - ₹")
-                        .append(rs.getDouble("amount"))
-                        .append(" on ")
-                        .append(rs.getTimestamp("date_time"))
-                        .append("<br>");
+                found = true;
+                String type = rs.getString("type");
+                double amount = rs.getDouble("amount");
+                double balAfter = rs.getDouble("balance_after");
+                Timestamp ts = rs.getTimestamp("timestamp");
+                sb.append(String.format("<b>%s</b> ₹%.2f — Bal: ₹%.2f<br><small>%s</small><hr>",
+                        type, amount, balAfter, ts == null ? "" : ts.toString()));
             }
-            if (!hasRecords) {
-                history.append("No recent transactions found.<br>");
-            }
-            history.append("</html>");
-
-            JOptionPane.showMessageDialog(this, new JLabel(history.toString()));
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Error fetching history: " + ex.getMessage());
+            if (!found) sb.append("<i>No recent transactions</i>");
+            sb.append("</body></html>");
+            JLabel label = new JLabel(sb.toString());
+            label.setForeground(Color.WHITE);
+            JOptionPane.showMessageDialog(this, label, "Transaction History", JOptionPane.PLAIN_MESSAGE);
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "History fetch error: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    //  Run Application
+    // ---------- Small custom components for style ----------
+
+    /**
+     * FancyButton: dark rectangular button with orange glow, hover and pressed effects.
+     */
+    private class FancyButton extends JButton {
+        private Color base = new Color(40, 40, 42);
+        private Color glow = orangeGlow();
+        private Runnable action;
+
+        FancyButton(String text) {
+            super(text);
+            setContentAreaFilled(false);
+            setFocusPainted(false);
+            setFont(new Font("Dialog", Font.BOLD, 16));
+            setForeground(Color.WHITE);
+            setBorder(BorderFactory.createEmptyBorder(10, 18, 10, 18));
+            setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+            addMouseListener(new MouseAdapter() {
+                public void mouseEntered(MouseEvent e) { repaint(); }
+                public void mouseExited(MouseEvent e) { repaint(); }
+                public void mousePressed(MouseEvent e) { repaint(); }
+                public void mouseReleased(MouseEvent e) { repaint(); }
+            });
+            addActionListener(e -> { if (action != null) action.run(); });
+        }
+
+        void addActionListener(Runnable r) {
+            this.action = r;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            int w = getWidth(), h = getHeight();
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            boolean hover = getModel().isRollover();
+            boolean pressed = getModel().isPressed();
+
+            // background
+            RoundRectangle2D.Float r = new RoundRectangle2D.Float(0, 0, w, h, 14, 14);
+            g2.setColor(base);
+            g2.fill(r);
+
+            // glow layer on hover
+            if (hover) {
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.18f));
+                GradientPaint gp = new GradientPaint(0,0, glow, w, h, new Color(0,0,0,0));
+                g2.setPaint(gp);
+                g2.fill(r);
+            }
+
+            // pressed overlay
+            if (pressed) {
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.12f));
+                g2.setColor(Color.BLACK);
+                g2.fill(r);
+            }
+
+            // text
+            g2.setComposite(AlphaComposite.SrcOver);
+            FontMetrics fm = g2.getFontMetrics();
+            int tw = fm.stringWidth(getText());
+            g2.setColor(Color.WHITE);
+            g2.drawString(getText(), (w - tw) / 2, (h + fm.getAscent() - fm.getDescent()) / 2);
+
+            g2.dispose();
+        }
+    }
+
+    /**
+     * SlidePanel is a JPanel that allows us to move it by setLocation for animation.
+     */
+    private class SlidePanel extends JPanel {
+        SlidePanel() {
+            setLayout(new BorderLayout());
+            setOpaque(true);
+            setBackground(darkColor());
+        }
+    }
+
+    // ---------- Main ----------
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new AtmGui());
     }
