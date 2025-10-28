@@ -1,4 +1,3 @@
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -9,11 +8,11 @@ import java.util.Properties;
 import java.io.FileInputStream;
 import java.io.IOException;
 import javax.swing.Timer;
-
+// ATM GUI Application
 public class AtmGui extends JFrame {
 
     // panels
-    private JPanel rootPanel;               
+    private JPanel rootPanel;
     private CardLayout cardLayout;
     private SlidePanel loginPanel, menuPanel, depositPanel, withdrawPanel, balancePanel;
 
@@ -33,7 +32,7 @@ public class AtmGui extends JFrame {
     private double currentBalance = 0.0;
 
     // animation stiffness
-    private static final int SLIDE_ANIM_MS = 14;
+    private static final int SLIDE_ANIM_MS = 12;
     private static final int SLIDE_STEP = 40;
 
     public AtmGui() {
@@ -47,14 +46,12 @@ public class AtmGui extends JFrame {
 
     private void loadLookAndFeel() {
         try {
-            // optional: platform LAF
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
     }
 
-    
-// db connection loader
-public void loadDBConnection() {
+    // db connection loader (your version)
+    public void loadDBConnection() {
         try {
             Properties props = new Properties();
             props.load(new FileInputStream("config.properties"));
@@ -74,7 +71,6 @@ public void loadDBConnection() {
         }
     }
 
-//
     private void initUI() {
         // root
         cardLayout = new CardLayout();
@@ -149,9 +145,7 @@ public void loadDBConnection() {
         // login button
         btnLogin = new FancyButton("Insert Card / Login");
         btnLogin.setPreferredSize(new Dimension(320, 48));
-        btnLogin.addActionListener(ae -> {
-            performLogin();
-        });
+        btnLogin.addActionListener(ae -> performLogin()); // standard ActionListener
         btnLogin.setAlignmentX(Component.CENTER_ALIGNMENT);
         card.add(btnLogin);
 
@@ -225,9 +219,7 @@ public void loadDBConnection() {
         gbc.gridx = 1;
         btnHistory = new FancyButton("Transaction History");
         btnHistory.setPreferredSize(new Dimension(260, 70));
-        btnHistory.addActionListener(ae -> {
-            showHistory();
-        });
+        btnHistory.addActionListener(ae -> showHistory());
         center.add(btnHistory, gbc);
 
         p.add(center, BorderLayout.CENTER);
@@ -237,9 +229,7 @@ public void loadDBConnection() {
         footer.setOpaque(false);
         btnExit = new FancyButton("Exit");
         btnExit.setPreferredSize(new Dimension(160, 48));
-        btnExit.addActionListener(ae -> {
-            System.exit(0);
-        });
+        btnExit.addActionListener(ae -> System.exit(0));
         footer.add(btnExit);
         p.add(footer, BorderLayout.SOUTH);
 
@@ -388,41 +378,37 @@ public void loadDBConnection() {
     private enum SlideDirection { LEFT, RIGHT }
 
     private void slideTo(String name, SlideDirection dir) {
+        // if simple switch is fine: keep CardLayout show then animate a small slide feel by translating panels
         Component current = getVisibleCard();
-        Component next = findCardComponent(name);
+        Component next = getPanelByName(name);
         if (current == next) return;
 
-        // set next invisible in layer and add to glasspane as we animate
-        Point start = next.getLocation();
         Dimension size = rootPanel.getSize();
+        int startX = (dir == SlideDirection.LEFT) ? size.width : -size.width;
 
-        int fromX = (dir == SlideDirection.LEFT) ? size.width : -size.width;
-        int toX = 0;
-
-        next.setLocation(fromX, 0);
+        // prepare next for animation
         next.setVisible(true);
+        next.setLocation(startX, 0);
 
         Timer t = new Timer(SLIDE_ANIM_MS, null);
         t.addActionListener(new ActionListener() {
-            int x = fromX;
+            int x = startX;
             public void actionPerformed(ActionEvent e) {
                 if (dir == SlideDirection.LEFT) x -= SLIDE_STEP;
                 else x += SLIDE_STEP;
-                if ((dir == SlideDirection.LEFT && x <= toX) || (dir == SlideDirection.RIGHT && x >= toX)) {
+                if ((dir == SlideDirection.LEFT && x <= 0) || (dir == SlideDirection.RIGHT && x >= 0)) {
                     next.setLocation(0,0);
-                    current.setVisible(false);
                     cardLayout.show(rootPanel, name);
+                    // ensure current hidden
+                    current.setVisible(false);
                     t.stop();
                 } else {
                     next.setLocation(x, 0);
-                    // move current in opposite direction slightly to create parallax
-                    int curX = x + ((dir == SlideDirection.LEFT) ? -size.width : size.width);
-                    current.setLocation(curX, 0);
                 }
             }
         });
         t.start();
-        // ensure card layout will show the right component after animation
+        // also tell CardLayout to show in the end
         cardLayout.show(rootPanel, name);
     }
 
@@ -430,37 +416,18 @@ public void loadDBConnection() {
         for (Component c : rootPanel.getComponents()) {
             if (c.isVisible()) return c;
         }
-        // fallback
-        return rootPanel.getComponent(0);
-    }
-
-    private Component findCardComponent(String name) {
-        for (Component c : rootPanel.getComponents()) {
-            if (name.equals(rootPanel.getComponentZOrder(c) >= 0 ? getNameForComponent(c) : null)) {
-                return c;
-            }
-        }
-        // fallback by matching class or panel type
-        for (Component c : rootPanel.getComponents()) {
-            if (c instanceof SlidePanel) {
-                // crude: map by reference
-                if (name.equals("login") && c == loginPanel) return c;
-                if (name.equals("menu") && c == menuPanel) return c;
-                if (name.equals("deposit") && c == depositPanel) return c;
-                if (name.equals("withdraw") && c == withdrawPanel) return c;
-                if (name.equals("balance") && c == balancePanel) return c;
-            }
-        }
         return loginPanel;
     }
 
-    private String getNameForComponent(Component c) {
-        if (c == loginPanel) return "login";
-        if (c == menuPanel) return "menu";
-        if (c == depositPanel) return "deposit";
-        if (c == withdrawPanel) return "withdraw";
-        if (c == balancePanel) return "balance";
-        return null;
+    private Component getPanelByName(String name) {
+        switch (name) {
+            case "login": return loginPanel;
+            case "menu": return menuPanel;
+            case "deposit": return depositPanel;
+            case "withdraw": return withdrawPanel;
+            case "balance": return balancePanel;
+            default: return loginPanel;
+        }
     }
 
     private void setFullScreen() {
@@ -473,7 +440,6 @@ public void loadDBConnection() {
             setExtendedState(JFrame.MAXIMIZED_BOTH);
             setVisible(true);
         }
-        // center root panel sizing
         setLayout(new BorderLayout());
         add(rootPanel, BorderLayout.CENTER);
         validate();
@@ -565,7 +531,6 @@ public void loadDBConnection() {
     }
 
     private void showBalance() {
-        // find the balance label in balancePanel and update text
         JLabel label = findBalanceLabel(balancePanel);
         if (label != null) {
             label.setText(String.format("₹ %.2f", currentBalance));
@@ -618,11 +583,11 @@ public void loadDBConnection() {
 
     /**
      * FancyButton: dark rectangular button with orange glow, hover and pressed effects.
+     * Uses the normal addActionListener(ActionListener) so your existing lambdas keep working.
      */
     private class FancyButton extends JButton {
         private Color base = new Color(40, 40, 42);
         private Color glow = orangeGlow();
-        private Runnable action;
 
         FancyButton(String text) {
             super(text);
@@ -633,17 +598,13 @@ public void loadDBConnection() {
             setBorder(BorderFactory.createEmptyBorder(10, 18, 10, 18));
             setCursor(new Cursor(Cursor.HAND_CURSOR));
 
+            // repaint on hover/press so paintComponent picks it up
             addMouseListener(new MouseAdapter() {
                 public void mouseEntered(MouseEvent e) { repaint(); }
                 public void mouseExited(MouseEvent e) { repaint(); }
                 public void mousePressed(MouseEvent e) { repaint(); }
                 public void mouseReleased(MouseEvent e) { repaint(); }
             });
-            addActionListener(e -> { if (action != null) action.run(); });
-        }
-
-        void addActionListener(Runnable r) {
-            this.action = r;
         }
 
         @Override
