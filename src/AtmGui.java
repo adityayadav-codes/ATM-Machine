@@ -146,7 +146,7 @@ public class AtmGui extends JFrame implements ActionListener {
                     currentPhone = "N/A";
                 }
 
-                lblUserInfo.setText("👋 Welcome, " + currentUserName +
+                lblUserInfo.setText("Welcome, " + currentUserName +
                         " | Bank: " + currentBank +
                         " | Phone: " + currentPhone +
                         " | Balance: ₹" + currentBalance);
