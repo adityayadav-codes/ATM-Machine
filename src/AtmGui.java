@@ -1,7 +1,9 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.FileInputStream;
 import java.sql.*;
+import java.util.Properties;
 
 public class AtmGui extends JFrame implements ActionListener {
 
@@ -36,16 +38,26 @@ public class AtmGui extends JFrame implements ActionListener {
         setVisible(true);
     }
 
-    // 🔹 Database Connection (NO CHANGE FROM YOUR STRUCTURE)
-    void connectDatabase() {
+    //  DATABASE CONNECTION
+    public void connectDatabase() {
         try {
+            Properties props = new Properties();
+            props.load(new FileInputStream("config.properties"));
+            System.out.println("✅ Properties loaded successfully!");
+
+            String url = props.getProperty("db.url");
+            String user = props.getProperty("db.user");
+            String password = props.getProperty("db.password");
+
             Class.forName("com.mysql.cj.jdbc.Driver");
-            con = DriverManager.getConnection("jdbc:mysql://localhost:3306/atmdb", "root", "yourpassword");
+            con = DriverManager.getConnection(url, user, password);
+            System.out.println("✅ Connected to DB successfully!");
+
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Database Connection Failed: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "❌ Database connection failed!\n" + e.getMessage());
+            System.exit(0);
         }
     }
-
     // 🔹 LOGIN PANEL
     void createLoginPanel() {
         loginPanel = new JPanel(new GridBagLayout());
@@ -199,6 +211,19 @@ public class AtmGui extends JFrame implements ActionListener {
             JOptionPane.showMessageDialog(this, "Error updating balance: " + e.getMessage());
         }
     }
+    void saveTransaction(String type, double amount) {
+    try {
+        PreparedStatement ps = con.prepareStatement(
+                "INSERT INTO transactions (account_id, type, amount, balance_after) VALUES (?, ?, ?, ?)");
+        ps.setInt(1, accountId);
+        ps.setString(2, type);
+        ps.setDouble(3, amount);
+        ps.setDouble(4, currentBalance);
+        ps.executeUpdate();
+    } catch (SQLException e) {
+        JOptionPane.showMessageDialog(this, "Error saving transaction: " + e.getMessage());
+    }
+}
 
     public static void main(String[] args) {
         new AtmGui();
