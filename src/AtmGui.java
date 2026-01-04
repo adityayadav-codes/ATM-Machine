@@ -216,21 +216,6 @@ public class AtmGui extends JFrame implements ActionListener {
         }
     }
 
-    // 🔹 Save transaction
-    // void saveTransaction(String type, double amount) {
-    //     try {
-    //         PreparedStatement ps = con.prepareStatement(
-    //                 "INSERT INTO transactions (account_id, type, amount) VALUES (?, ?, ?)");
-    //         ps.setInt(1, accountId);
-    //         ps.setString(2, type);
-    //         ps.setDouble(3, amount);
-    //         ps.executeUpdate();
-    //     } catch (SQLException e) {
-    //         JOptionPane.showMessageDialog(this, "Error saving transaction: " + e.getMessage());
-    //     }
-    // }
-
-    //
     // 🔹 Save transaction with balance_after
 void saveTransaction(String type, double amount) {
     try {
