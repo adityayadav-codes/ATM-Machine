@@ -3,7 +3,7 @@
 import java.util.Scanner;
 
 abstract class Bank {
-    protected double balance = 0;
+    protected double balance = 2000;
 
     abstract double getInterestRate();
 
